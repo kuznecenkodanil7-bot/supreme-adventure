@@ -1,0 +1,6 @@
+Замените в репозитории:
+
+1. src/main/java/dev/raidmine/stafftool/util/ServerGuard.java
+2. gradle.properties
+
+После замены выполните GitHub Actions повторно.

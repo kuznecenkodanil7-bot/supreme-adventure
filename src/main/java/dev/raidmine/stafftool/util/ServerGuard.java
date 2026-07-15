@@ -73,17 +73,45 @@ public final class ServerGuard {
 
     private static String invokeScoreboardSidebar(MinecraftClient client) {
         try {
-            Object scoreboard = client.player.getScoreboard();
-            if (scoreboard == null) return "";
-            for (Method method : scoreboard.getClass().getMethods()) {
-                if (!method.getName().toLowerCase(Locale.ROOT).contains("sidebar")) continue;
-                if (method.getParameterCount() != 0) continue;
-                Object value = method.invoke(scoreboard);
-                if (value != null) return value.toString();
+            // In 1.21.11 ClientPlayerEntity no longer exposes getScoreboard() in
+            // the selected Yarn mappings. Resolve it reflectively from ClientWorld
+            // first, with ClientPlayerEntity only as a compatibility fallback.
+            Object scoreboard = invokeNoArg(client.world, "getScoreboard");
+            if (scoreboard == null) {
+                scoreboard = invokeNoArg(client.player, "getScoreboard");
             }
-            return scoreboard.toString();
+            if (scoreboard == null) {
+                return "";
+            }
+
+            StringBuilder context = new StringBuilder(scoreboard.toString());
+            for (Method method : scoreboard.getClass().getMethods()) {
+                String name = method.getName().toLowerCase(Locale.ROOT);
+                if (method.getParameterCount() != 0) continue;
+                if (!name.contains("sidebar") && !name.contains("display") && !name.contains("objective")) {
+                    continue;
+                }
+                try {
+                    Object value = method.invoke(scoreboard);
+                    if (value != null) {
+                        context.append(" | ").append(value);
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                }
+            }
+            return context.toString();
         } catch (Exception ignored) {
             return "";
+        }
+    }
+
+    private static Object invokeNoArg(Object target, String methodName) {
+        if (target == null) return null;
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            return method.invoke(target);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
         }
     }
 
